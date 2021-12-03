@@ -1,10 +1,9 @@
 // @flow
 
-import logger from '../analytics/logger';
 import { StateListenerRegistry } from '../base/redux';
 
-import { updateRemoteParticipants } from './functions';
 import { setVisibleRemoteParticipants } from './actions.any';
+import { updateRemoteParticipants } from './functions';
 
 /**
  * Listens for changes to the screensharing status of the remote participants to recompute the reordered list of the
@@ -16,58 +15,35 @@ StateListenerRegistry.register(
 
 /**
  * Listens for changes to the dominant speaker to recompute the reordered list of the remote endpoints.
- * ...TODO DOC NEEDED
+ * Additionally, it handles the visibility of the dominant speaker in the reducedUI mode.
  */
 StateListenerRegistry.register(
     /* selector */ state => state['features/base/participants'].dominantSpeaker,
     /* listener */ (dominantSpeaker, store) => {
+        const { reducedUI } = store.getState()['features/base/responsive-ui'];
+
         updateRemoteParticipants(store);
-
-        const {reducedUI} = store.getState()['features/base/responsive-ui'];
-
-        if(reducedUI){
-            _updateSpeakerVisibilityInReducedMode(store,dominantSpeaker);
-        }       
+        _makeAllParticipantVisible(store, reducedUI);
     });
 
-///// Working_Area
 /**
- * TODO DOC NEEDED
+ * Listens for changes to the reducedUI to update the dominant speaker's visibility.
  *  */
 StateListenerRegistry.register(
     /* selector */ state => state['features/base/responsive-ui'].reducedUI,
-    /* listener */ (reducedUI, store) => {
+    /* listener */ (reducedUI, store) => _makeAllParticipantVisible(store, reducedUI));
 
-        if(reducedUI){
-            const {dominantSpeaker} = store.getState()['features/base/participants'];
+/**
+ * Helper function to expand the visible range to cover all of the participants when ReducedUI is true.
+ *
+ * @param {Store} store - The redux store.
+ * @param {boolean} reducedUI - The current reducedUI mode.
+ * @returns {void}
+ */
+function _makeAllParticipantVisible(store, reducedUI) {
+    if (reducedUI) {
+        const { remoteParticipants } = store.getState()['features/filmstrip'];
 
-            _updateSpeakerVisibilityInReducedMode(store,dominantSpeaker);
-        }
-    });
-
-
-//TODO be more js style
-const _updateSpeakerVisibilityInReducedMode = (store,participantId)=>{
-    const state = store.getState();
-    const { visibleRemoteParticipants, remoteParticipants } = state['features/filmstrip'];
-
-    //Temporary for testing, This is for the sake of handling corner cases like, 
-    //speaker suddenly left or all participants have entered mutely
-    if(participantId == undefined){
-        //TODO
-        store.dispatch(setVisibleRemoteParticipants(1,1));
-        return;
-    }
-
-    const isInTheRange = Array.from(visibleRemoteParticipants).includes(participantId);
-
-    if(!isInTheRange){
-        logger.debug("issue10261 dominant speaker is out of range: "+ participantId);
-        let speakerIndex = Array.from(remoteParticipants).indexOf(participantId);
-        logger.debug("issue10261 index: "+ speakerIndex);
-        if(speakerIndex!==-1){
-           store.dispatch(setVisibleRemoteParticipants(speakerIndex,speakerIndex));
-           logger.debug("issue10261 dominant speaker is updated");
-        }            
+        store.dispatch(setVisibleRemoteParticipants(0, remoteParticipants.length - 1));
     }
 }
